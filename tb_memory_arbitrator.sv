@@ -116,14 +116,6 @@ end
         mem_req = 0;
         repeat(17) @(posedge clk);
 
-        // actual checking
-        // for (integer i = 0; i < 16; i++) begin
-        //     if (data_out[i] !== (16'h0000 | i+1))
-        //         $display("FAIL thread %0d: expected %h got %h", 
-        //               i, 16'h0000 | i, data_out[i]);
-        //     else
-        //         $display("PASS thread %0d: got %h", i, data_out[i]);
-        // end
         $finish;
     end
 endmodule
