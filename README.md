@@ -6,10 +6,8 @@ A synthesizable SystemVerilog arbitrator for a 16-bank shared memory, designed f
 
 ## Architecture Overview
 
-```
 <img width="1136" height="696" alt="image" src="https://github.com/user-attachments/assets/33be1ee1-22b8-47a4-9e89-dab7ffe964c1" />
 
-```
 
 ### Address Decomposition
 
