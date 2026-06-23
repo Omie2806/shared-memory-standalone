@@ -95,9 +95,9 @@ end
         mem_req = 0;
         @(posedge clk);     
 
-        //test 5: send all requests to bank 0
+        //test 5: send all requests to bank 1
         for(integer i = 0; i < BANKS; i++) begin
-            addr[i] = {8'b0, i[3 : 0], 4'b0};
+            addr[i] = {8'b0, i[3 : 0], 4'b1};
             data_in[i] = i+1;
         end   
         @(posedge clk);
@@ -108,14 +108,90 @@ end
         repeat(17)@(posedge clk);
         mem_write = 0;
 
+
+        //test 6 read that data
         mem_req  = 1;
         for (integer i = 0; i < BANKS; i++) begin
-            addr[i] = {8'b0, i[3:0], 4'b0};  // same addresses
+            addr[i] = {8'b0, i[3:0], 4'b1};  // same addresses
         end
         @(posedge clk);
         mem_req = 0;
         repeat(17) @(posedge clk);
 
+
+        // for (integer i = 0; i < 16; i++) begin
+        //     if (data_out[i] !== (16'h0000 | i+1))
+        //         $display("FAIL thread %0d: expected %h got %h", 
+        //               i, 16'h0000 | i, data_out[i]);
+        //     else
+        //         $display("PASS thread %0d: got %h", i, data_out[i]);
+        // end
+
+        //test 7: cause conflicts on multiple banks
+        for(integer i = 0; i < 4; i++) begin
+            addr[i] = {8'b0, i[3 : 0], 4'b0001};
+            data_in[i] = i+1;
+        end 
+        for(integer i = 4; i < 8; i++) begin
+            addr[i] = {8'b0, i[3 : 0], 4'b0010};
+            data_in[i] = i+1;
+        end 
+        for(integer i = 8; i < 12; i++) begin
+            addr[i] = {8'b0, i[3 : 0], 4'b0011};
+            data_in[i] = i+1;
+        end
+        for(integer i = 12; i < 16; i++) begin
+            addr[i] = {8'b0, i[3 : 0], 4'b0100};
+            data_in[i] = i+1;
+        end 
+        @(posedge clk);
+        mem_req = 1;
+        mem_write = 1;
+        repeat(2)@(posedge clk);
+        mem_req = 0;
+        repeat(6)@(posedge clk);
+        mem_write = 0;    
+        @(posedge clk);   
+
+        //test 8: read this data
+        for(integer i = 0; i < 4; i++) begin
+            addr[i] = {8'b0, 4'b0000, 4'b0001}; //read bank 1(read the same register)
+        end 
+        for(integer i = 4; i < 8; i++) begin
+            addr[i] = {8'b0, i[3 : 0], 4'b0010}; //read bank 2
+        end 
+        for(integer i = 8; i < 12; i++) begin
+            addr[i] = {8'b0, i[3 : 0], 4'b0011}; //read bank 3
+        end
+        for(integer i = 12; i < 16; i++) begin
+            addr[i] = {8'b0, i[3 : 0], 4'b0100}; //read bank 4
+        end 
+        @(posedge clk);
+        mem_req = 1;
+        repeat(2)@(posedge clk);
+        mem_req = 0;
+        repeat(8)@(posedge clk);
+
+        //test 8: read this data
+        for(integer i = 0; i < 4; i++) begin
+            addr[i] = {8'b0, 4'b0000, 4'b0001}; //read bank 1(read the same register)
+        end 
+        for(integer i = 4; i < 8; i++) begin
+            addr[i] = {8'b0, 4'b0000, 4'b0010}; //read bank 2(read the same register)
+        end 
+        for(integer i = 8; i < 12; i++) begin
+            addr[i] = {8'b0, 4'b0000, 4'b0011}; //read bank 3(read the same register)
+        end
+        for(integer i = 12; i < 16; i++) begin
+            addr[i] = {8'b0, 4'b0000, 4'b0100}; //read bank 4
+        end 
+        @(posedge clk);
+        mem_req = 1;
+        repeat(2)@(posedge clk);
+        mem_req = 0;
+        repeat(6)@(posedge clk);
+
+        
         $finish;
     end
 endmodule
