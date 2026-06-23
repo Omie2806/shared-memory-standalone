@@ -138,3 +138,8 @@ This module is part of a larger SIMT GPU and systolic array implementation
 | Data width | 16-bit |
 | Threads | 16 |
 | Address depth | 16 entries per bank |
+
+## References
+NVIDIA TESLA:A UNIFIED GRAPHICS AND COMPUTING ARCHITECTURE
+Programming Massively Parallel Processors by Hwu and Kirk
+
