@@ -86,6 +86,10 @@ Cycle 3: pending = {3}
 When multiple threads issue a read to the **same bank and same depth address**, this is detected as a broadcast read. A single bank access serves all matching threads simultaneously, rather than serializing them. This is the GPU equivalent of a uniform/splat load(common in weight broadcasts during matrix multiply).
 *Memory Writes are not broadcasted due to the uncertainity of the winning thread.*
 
+### Example:
+<img width="1650" height="137" alt="image" src="https://github.com/user-attachments/assets/fc0b0263-6457-4894-ac50-41266e965f4c" />
+
+
 ---
 
 ## Testbench Coverage
