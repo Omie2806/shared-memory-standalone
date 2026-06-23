@@ -1,6 +1,6 @@
 # Banked Shared Memory Arbitrator
 
-A synthesizable SystemVerilog arbitrator for a 16-bank shared memory, designed for use in a SIMT GPU / systolic array architecture on an Artix-7 FPGA. Resolves bank conflicts across 16 concurrent thread memory requests, with broadcast optimization for uniform reads and per-bank round-robin grant arbitration.
+A synthesizable SystemVerilog arbitrator for a 16-bank shared memory, designed for use in a SIMT GPU / systolic array architecture. Resolves bank conflicts across 16 concurrent thread memory requests, with broadcast optimization for uniform reads and per-bank round-robin grant arbitration.
 
 ---
 
@@ -85,7 +85,8 @@ Cycle 3: pending = {3}
 
 ## Broadcast Optimization
 
-When multiple threads issue a read to the **same bank and same depth address**, this is detected as a broadcast read. A single bank access serves all matching threads simultaneously, rather than serializing them. This is the GPU equivalent of a uniform/splat load — common in weight broadcasts during matrix multiply.
+When multiple threads issue a read to the **same bank and same depth address**, this is detected as a broadcast read. A single bank access serves all matching threads simultaneously, rather than serializing them. This is the GPU equivalent of a uniform/splat load(common in weight broadcasts during matrix multiply).
+*Memory Writes are not broadcasted due to the uncertainity of the winning thread.*
 
 ---
 
