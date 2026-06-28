@@ -2,6 +2,7 @@ module arbitrator #(
     parameter BANKS      = 16,
     parameter DW         = 16,
     parameter NUMBER_OF_THREADS  = 16, //systolic grid size 
+    parameter NUMBER_OF_WARPS = 4,
     parameter ADDR_DEPTH = 16
 ) (
     input logic clk,
@@ -9,12 +10,19 @@ module arbitrator #(
     input logic matmul,
     input logic mem_write,
     input logic mem_req,
-    input logic[NUMBER_OF_THREADS - 1 : 0] active_mask,
-    input logic[ADDR_DEPTH - 1 : 0]        addr[0 : NUMBER_OF_THREADS - 1], // receive te whole address ad decode it here 
-    input  logic [DW - 1 : 0]              data_in[0 : NUMBER_OF_THREADS - 1],
-    output logic[DW -  1 : 0]              data_out[0 : NUMBER_OF_THREADS - 1],  
+    input logic request_type, //eg 0 for lw and 1 sw
+    input logic [$clog2(NUMBER_OF_WARPS) - 1 : 0] warp_id_from_ws,//for multi-warp
+    input logic [NUMBER_OF_THREADS - 1 : 0]       active_mask,
+    input logic [ADDR_DEPTH - 1 : 0]              addr[0 : NUMBER_OF_THREADS - 1], // receive te whole address ad decode it here 
+    input  logic [DW - 1 : 0]                     data_in[0 : NUMBER_OF_THREADS - 1],
+    output logic [DW -  1 : 0]                    data_out[0 : NUMBER_OF_THREADS - 1], 
+    output logic [$clog2(NUMBER_OF_WARPS) - 1 : 0]rf_to_access,//a mux at top level can allow stalled rf access
+    output logic [$clog2(NUMBER_OF_WARPS) - 1 : 0]warp_id_to_ws, 
     output logic stall
 );
+    //i only need to save the addresses, warp number and request type
+    //rf access can be done using the warp number and the address generate by the alu 
+    //because that warp is stalled anyways so i can access them using the same port
     logic[ADDR_DEPTH - 1 : 0] saved_addr [0 : NUMBER_OF_THREADS - 1];
     logic[3 : 0] addr_depth [0 : NUMBER_OF_THREADS - 1];
     logic[3 : 0] addr_bank  [0 : NUMBER_OF_THREADS - 1];
@@ -24,16 +32,12 @@ module arbitrator #(
     logic[3 : 0] grant [0 : NUMBER_OF_THREADS - 1];
 
     logic grant_found;
-    logic[0 : NUMBER_OF_THREADS - 1] grant_mask;
+    logic broadcast_found;
+    logic grant_mask[0 : NUMBER_OF_THREADS - 1];
     logic[3 : 0] broadcast [0 : NUMBER_OF_THREADS - 1];
     logic[3 : 0] broadcast_bank [0 : NUMBER_OF_THREADS - 1];
     logic[3 : 0] bank_to_read [0 : NUMBER_OF_THREADS - 1];
     logic is_broadcast[0 : NUMBER_OF_THREADS - 1];
-
-    logic[3 : 0] debug_i [0 : NUMBER_OF_THREADS - 1];
-    logic[3 : 0] debug_j [0 : NUMBER_OF_THREADS - 1];
-
-    //ill have to know when a memory request actually finishes only then i can clear broadcast
 
     logic any_pending;
     
@@ -43,8 +47,6 @@ module arbitrator #(
                 broadcast[i] = 0;
                 broadcast_bank[i] = 0; 
                 stall = 0;
-                debug_i[i] = 0;
-                debug_j[i] = 0;
                 is_broadcast[i] = 0;
             end            
         end
@@ -68,7 +70,7 @@ module arbitrator #(
             any_pending = any_pending | (|bank_request[i]); 
         end
         stall = any_pending;
-        if(!stall && |grant_mask == 0) begin
+        if(!stall) begin
             for(integer i = 0; i < BANKS; i++) begin
                 broadcast[i] = 0;
                 broadcast_bank[i] = 0;   
@@ -82,7 +84,7 @@ module arbitrator #(
             for (integer i = 0; i < BANKS; i++) begin
                 grant[i]    <= 0;
                 bank_request[i] <= 'b0;
-                grant_mask <= 16'h00;
+                grant_mask[i] <= 0;
                 bank_to_read[i] <= 0;
             end
         end
@@ -99,19 +101,20 @@ module arbitrator #(
                 grant_found = 0;
                 for(integer j = 0; j < BANKS; j++) begin
                     if(bank_request[i][j]) begin
-                        if(|broadcast[i] && (addr_depth[i] == addr_depth[j])) begin
+                        if(is_broadcast[j]) begin
                             bank_request[i][j] <= 0;
                             grant[i]      <= j;
                             grant_mask[i] <= 1'b1;
+                            grant_found = 1;
                         end
-                        else if(!grant_found) begin
+                        else if(!grant_found && !is_broadcast[j]) begin
                             grant[i]   <= j; //jth thread wants to access the first bank and so on
                             grant_found = 1;
                             bank_request[i][j] <= 0;
                             grant_mask[i] <= 1'b1;
                         end
                     end
-                    else if(bank_request[i] == 0 && |broadcast[i] == 0) begin
+                    else if(bank_request[i] == 0 && is_broadcast[i] == 0) begin
                         grant[i] <= 0;
                         grant_mask[i] <= 0;
                     end
@@ -137,19 +140,20 @@ module arbitrator #(
     endgenerate
 
     always_comb begin 
-        for (integer i = 0; i < BANKS; i++) begin
-            data_out[i] = 'b0;
-        end
+        //this exists only for debugging purposes
+        // for (integer i = 0; i < BANKS; i++) begin
+        //     data_out[i] = 'b0;
+        // end
         for (integer i = 0; i < BANKS; i++) begin
             if(grant_mask[i])begin
                 data_out[grant[i]] = read_data[i];
-                debug_j[i] = i;
-            end            
+            end           
         end
+        //bank_request can be used for mixed request types
         for (integer i = 0; i < BANKS; i++) begin
             if(is_broadcast[i]) begin
                 data_out[broadcast[i]] = read_data[broadcast_bank[i]];
-                debug_i[i] = broadcast_bank[i]; 
+                 is_broadcast[i] = 0;
             end
         end
     end
