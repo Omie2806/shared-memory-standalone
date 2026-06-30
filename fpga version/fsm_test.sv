@@ -8,6 +8,9 @@ module tb_arbitrator_fsm #(
     input logic clk,
     input logic reset,
     input logic[3 : 0] test_number,
+    output logic mem_req_out,
+    output logic mem_write_out,
+    output logic data_in_out,
     output logic done,
     output logic error
 );
@@ -39,6 +42,7 @@ logic stall;
 logic[7 : 0] wait_counter;
 logic[1 : 0] mem_req_wait;
 
+(* keep_hierarchy = "yes" *)
 arbitrator dut (
     .clk(clk),
     .reset(reset),
@@ -56,6 +60,7 @@ arbitrator dut (
     .stall(stall)
 );
 
+
 always_comb begin 
     case (state_curr)
         IDLE: begin
@@ -67,6 +72,14 @@ always_comb begin
             end
         end
     endcase
+
+    for (integer i = 0; i < NUMBER_OF_THREADS; i++) begin
+        done = data_out[i] ^ test_number;
+        error = addr[test_number][i] ^ active_mask[test_number];
+        data_in_out = data_in[i] ^ test_number;
+        mem_req_out = mem_req ^ test_number;
+        mem_write_out = mem_write ^ test_number;
+    end
 end
 
 always_ff @(posedge clk) begin
@@ -277,7 +290,7 @@ always_ff @(posedge clk) begin
             end
             DONE: begin
                 state_curr <= IDLE;
-                done <= 1;
+                // done <= 1;
                 wait_counter <= 0;
                 mem_req_wait <= 0;
                 mem_write <= 0;
