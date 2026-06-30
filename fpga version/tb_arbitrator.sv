@@ -2,6 +2,9 @@ module tb_fsm_test;
 logic clk;
 logic reset;
 logic[3 : 0] test_number;
+logic mem_req_out;
+logic mem_write_out;
+logic data_in_out;
 logic done;
 logic error;
 
