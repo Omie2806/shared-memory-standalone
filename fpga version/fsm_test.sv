@@ -12,6 +12,7 @@ module tb_arbitrator_fsm #(
     output logic mem_write_out,
     output logic data_in_out,
     output logic done,
+//    output logic[255 : 0] data_out_debug,
     output logic error
 );
 
@@ -39,6 +40,8 @@ logic [$clog2(NUMBER_OF_WARPS) - 1 : 0]warp_id_to_ws;
 logic[NUMBER_OF_THREADS - 1 : 0]       active_mask;
 logic stall;
 
+(* mark_debug = "true" *) logic[255 : 0] data_out_debug;
+
 logic[7 : 0] wait_counter;
 logic[1 : 0] mem_req_wait;
 
@@ -60,6 +63,7 @@ arbitrator dut (
     .stall(stall)
 );
 
+assign data_out_debug = {>>{data_out}};
 
 always_comb begin 
     case (state_curr)
