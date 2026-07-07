@@ -125,6 +125,6 @@ This module is part of a larger SIMT GPU and systolic array implementation
 
 ## References
 - NVIDIA TESLA:A UNIFIED GRAPHICS AND COMPUTING ARCHITECTURE
-
 - Programming Massively Parallel Processors by Hwu and Kirk
+- Banked Memories for Soft SIMT Processors by Martin Langhammer and George A. Constantinides
 
