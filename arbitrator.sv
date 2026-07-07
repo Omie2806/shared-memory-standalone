@@ -27,99 +27,126 @@ module arbitrator #(
     logic[3 : 0] addr_depth [0 : NUMBER_OF_THREADS - 1];
     logic[3 : 0] addr_bank  [0 : NUMBER_OF_THREADS - 1];
     logic[DW - 1 : 0] read_data [0 : NUMBER_OF_THREADS - 1];
-
-    logic[NUMBER_OF_THREADS - 1 : 0] bank_request [0 : NUMBER_OF_THREADS - 1];
-    logic[3 : 0] grant [0 : NUMBER_OF_THREADS - 1];
-
-    logic grant_found;
-    logic broadcast_found;
-    logic grant_mask[0 : NUMBER_OF_THREADS - 1];
-    logic[3 : 0] broadcast [0 : NUMBER_OF_THREADS - 1];
-    logic[3 : 0] broadcast_bank [0 : NUMBER_OF_THREADS - 1];
+    
+    logic[3 : 0] broadcast_depth [0 : NUMBER_OF_THREADS - 1];
     logic[3 : 0] bank_to_read [0 : NUMBER_OF_THREADS - 1];
-    logic is_broadcast[0 : NUMBER_OF_THREADS - 1];
+
+
+    logic[15 : 0] grant_mask_per_bank[0 : BANKS - 1][0 : ADDR_DEPTH - 1];
+    //00-dont serve, 01- serve remaining, 10-serve done
+    logic[1 : 0]  SERVE[0 : BANKS - 1][0 : ADDR_DEPTH - 1];
+    logic         VALID[0 : BANKS - 1][0 : ADDR_DEPTH - 1];
+    logic[15 : 0] current_grant;
+    logic current_grant_found;
+    logic current_thread_grant;
+    logic valid_found;
+    logic bank_grant[0 : BANKS - 1];
+    logic[3 : 0] depth_to_read [0 : NUMBER_OF_THREADS - 1];
 
     logic any_pending;
-    
+    logic mem_req_latched;
     always_comb begin 
         if(reset) begin
             for (integer i = 0; i < BANKS; i++) begin
-                broadcast[i] = 0;
-                broadcast_bank[i] = 0; 
-                stall = 0;
-                is_broadcast[i] = 0;
+                for (integer j = 0; j < ADDR_DEPTH; j++) begin
+                    grant_mask_per_bank[i][j] = 0;
+                    bank_to_read[i] = 0;
+                    current_grant = 0;
+                    bank_grant[i] = 0;
+                    depth_to_read[i] = 0;
+                end
             end            
         end
-        if(mem_req) begin
+        else if(mem_req) begin
             for (integer i = 0; i < BANKS; i++) begin
                 addr_bank[i]  = addr[i][3 : 0]; //bank address
                 addr_depth[i] = addr[i][7 : 4]; //depth address 
             end
             for (integer i = 0; i < BANKS; i++) begin
-                for (integer j = 0; j < BANKS; j++) begin
-                    if((i != j) && (addr_bank[i] == addr_bank[j]) && (addr_depth[i] == addr_depth[j]) && !mem_write) begin
-                        broadcast[i] = i;
-                        broadcast_bank[i] = addr_bank[i];
-                        is_broadcast[i] = 1;
+                for (integer j = 0; j < ADDR_DEPTH; j++) begin
+                    for (integer k = 0; k < NUMBER_OF_THREADS; k++) begin
+                        if(addr_bank[k] == i) begin
+                            grant_mask_per_bank[i][j][k] = addr_depth[k] == j;
+                        end
                     end
                 end       
             end
         end
-        any_pending = '0;
+        else begin
+        current_grant = 0;
         for (integer i = 0; i < BANKS; i++) begin
-            any_pending = any_pending | (|bank_request[i]); 
+            current_grant_found = 0;
+            for (integer j = 0; j < ADDR_DEPTH; j++) begin
+                if(SERVE[i][j] == 2'b01 && !current_grant_found && VALID[i][j]) begin
+                    for (integer k = 0; k < NUMBER_OF_THREADS; k++) begin
+                        if(grant_mask_per_bank[i][j][k]) begin
+                            depth_to_read[i] = k;  
+                        end 
+                    end
+                    bank_to_read[i] = i;
+                    current_grant = current_grant | grant_mask_per_bank[i][j];
+                    grant_mask_per_bank[i][j] = 0;
+                    bank_grant[i] = 1'b1;
+                    current_grant_found = 1;
+                end
+            end
+        end
+        end
+        any_pending = 0;
+        for (integer i = 0; i < BANKS; i++) begin
+            for (integer j = 0; j < ADDR_DEPTH; j++) begin
+                any_pending = any_pending | |grant_mask_per_bank[i][j] | VALID[i][j];
+            end
         end
         stall = any_pending;
-        if(!stall) begin
-            for(integer i = 0; i < BANKS; i++) begin
-                broadcast[i] = 0;
-                broadcast_bank[i] = 0;   
-                is_broadcast[i] = 0;
-            end     
+        for (integer i = 0; i < BANKS; i++) begin
+            for (integer j = 0; j < ADDR_DEPTH; j++) begin
+                if(!stall) begin
+                    bank_to_read[i] = 0;
+                    bank_grant[i] = 0;
+                    depth_to_read[i] = 0;
+                end
+            end
         end
+
     end
 //i have to generate grants to individual threads to write in a specific bank
     always_ff @(posedge clk) begin
         if(reset) begin
             for (integer i = 0; i < BANKS; i++) begin
-                grant[i]    <= 0;
-                bank_request[i] <= 'b0;
-                grant_mask[i] <= 0;
-                bank_to_read[i] <= 0;
+                for (integer j = 0; j < ADDR_DEPTH; j++) begin
+                    VALID[i][j] <= 0;
+                    SERVE[i][j] <= 0;
+                end
             end
+            mem_req_latched <= 0;
         end
         else if(mem_req) begin
             for (integer i = 0; i < BANKS; i++) begin
                 for (integer j = 0; j < BANKS; j++) begin
-                    bank_request[i][j] <= (addr_bank[j] == i); //which threads are requesting which bank
-                    bank_to_read[i] <= addr_bank[i];
+                    SERVE[i][j] <= |grant_mask_per_bank[i][j] ? 01 : 10;
+                    VALID[i][j] <= |grant_mask_per_bank[i][j] ? 1 : 0;
                 end
             end            
         end
         else begin
             for (integer i = 0; i < BANKS; i++) begin
-                grant_found = 0;
-                for(integer j = 0; j < BANKS; j++) begin
-                    if(bank_request[i][j]) begin
-                        if(is_broadcast[j]) begin
-                            bank_request[i][j] <= 0;
-                            grant[i]      <= j;
-                            grant_mask[i] <= 1'b1;
-                            grant_found = 1;
-                        end
-                        else if(!grant_found && !is_broadcast[j]) begin
-                            grant[i]   <= j; //jth thread wants to access the first bank and so on
-                            grant_found = 1;
-                            bank_request[i][j] <= 0;
-                            grant_mask[i] <= 1'b1;
-                        end
+                valid_found = 0;
+                for (integer j = 0; j < ADDR_DEPTH; j++) begin
+                    if(SERVE[i][j] == 2'b01 && !valid_found) begin
+                        SERVE[i][j] <= 2'b10;
+                        VALID[i][j] <= 0;
+                        valid_found = 1;
                     end
-                    else if(bank_request[i] == 0 && is_broadcast[i] == 0) begin
-                        grant[i] <= 0;
-                        grant_mask[i] <= 0;
-                    end
-                end              
-            end                       
+                end
+            end
+        end
+        if(!stall) begin
+            for (integer i = 0; i < BANKS; i++) begin
+                for (integer j = 0; j < ADDR_DEPTH; j++) begin
+                    SERVE[i][j] <= 0;
+                end
+            end
         end
     end
 
@@ -127,34 +154,24 @@ module arbitrator #(
     generate
         for (i = 0; i < BANKS; i++) begin   
             memory_bank mem_bank (
-                .bank_en(addr_bank[grant[i]] == i[3 : 0] && active_mask[grant[i]] == 1 && grant_mask[i]), //comparison to check if bank number equals the address(this is wrong tho)
+                .bank_en(bank_grant[i]), //comparison to check if bank number equals the address(this is wrong tho)
                 .clk(clk),
                 .reset(reset),
                 .matmul(matmul),
                 .mem_write(mem_write),
-                .addr_depth(addr_depth[grant[i]]),
-                .data_in(data_in[grant[i]]),
-                .data_out(read_data[i]) //idk why it isnt allowing me to use grant[i] here
+                .addr_depth(addr_depth[depth_to_read[i]]),
+                .data_in(data_in[depth_to_read[i]]),
+                .data_out(read_data[i]) 
             );
         end
     endgenerate
 
-    always_comb begin 
-        //this exists only for debugging purposes
-        // for (integer i = 0; i < BANKS; i++) begin
-        //     data_out[i] = 'b0;
-        // end
-        for (integer i = 0; i < BANKS; i++) begin
-            if(grant_mask[i])begin
-                data_out[grant[i]] = read_data[i];
-            end           
-        end
-        //bank_request can be used for mixed request types
-        for (integer i = 0; i < BANKS; i++) begin
-            if(is_broadcast[i]) begin
-                data_out[broadcast[i]] = read_data[broadcast_bank[i]];
-                 is_broadcast[i] = 0;
+    always_comb begin
+        for (integer a = 0; a < NUMBER_OF_THREADS; a++) begin
+            if(current_grant[a]) begin
+                data_out[a] = read_data[addr_bank[a]];     
             end
-        end
+        end    
     end
+
 endmodule
