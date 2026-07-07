@@ -62,7 +62,13 @@ module arbitrator #(
 
 ## Conflict Resolution
 
-When multiple threads target the same bank in a single cycle, only one is granted per cycle. The rest are tracked in a pending request register (`bank_request`) and replayed in subsequent cycles until all are served. `stall` remains asserted until all pending requests are cleared.
+The Arbitrator contains a Pending request table for each bank and its registers. The requests get queued in this table(broadcasts, conflicts or mixed request type).
+If a register in a bank is yet to be served, then its service flag is set with a corresponding Valid flag, when the request is served, its service flag is set to done and its valid flag is removed.
+
+### Example:
+<img width="1882" height="562" alt="image" src="https://github.com/user-attachments/assets/f2368fa5-29d0-4cec-854e-223840ba31bb" />
+(each entry has a corresponding service and valid flag)
+
 
 ```
 Cycle 0: Threads 0,1,2,3 all request Bank 1
@@ -92,21 +98,6 @@ When multiple threads issue a read to the **same bank and same depth address**, 
 
 ---
 
-## Testbench Coverage
-
-`tb_memory_arbitrator.sv` covers the following scenarios:
-
-| Test | Scenario |
-|------|----------|
-| 1 | Write with inter-bank conflicts (threads 1, 2, 3 target same banks) |
-| 2 | Cross-read: thread 1 reads address written by thread 3, and vice versa |
-| 3 | Conflict-free write across all 16 banks |
-| 4 | Cross-bank read (thread 2 reads thread 4's address) |
-| 5 | All 16 threads target a single bank (worst-case conflict, 16 stall cycles) |
-| 6 | Read back test 5's data(first 4 threads cause broadcasting rest will cause conflicts in banks 2, 3 and 4)|
-| 7 | 4-way conflicts across 4 banks simultaneously |
-| 8 | Broadcast read: 4 threads read the same address in the same bank |
-
 ---
 
 ## Integration Context
@@ -123,10 +114,6 @@ This module is part of a larger SIMT GPU and systolic array implementation
 ## Known Limitations / Work in Progress
 
 - Arbitration is currently fixed-priority (lowest thread index wins per bank). True round-robin with aging is not yet implemented.
-- Pending mask replay adds one cycle of latency per conflict level; no out-of-order completion.
-- Broadcast detection requires matching both bank and depth address; partial overlap is not tested yet.
-- `stall` is combinationally derived from `bank_request`.
-
 
 ---
 
@@ -140,6 +127,7 @@ This module is part of a larger SIMT GPU and systolic array implementation
 | Address depth | 16 entries per bank |
 
 ## References
-NVIDIA TESLA:A UNIFIED GRAPHICS AND COMPUTING ARCHITECTURE
-Programming Massively Parallel Processors by Hwu and Kirk
+- NVIDIA TESLA:A UNIFIED GRAPHICS AND COMPUTING ARCHITECTURE
+
+- Programming Massively Parallel Processors by Hwu and Kirk
 
