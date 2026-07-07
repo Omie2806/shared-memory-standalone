@@ -48,17 +48,20 @@ end
         addr[2] = 16'h0041;
         data_in[2] = 16'h0002;
         mem_write = 1;
-        @(posedge clk);
+        @(negedge clk);
         mem_req = 1;
-        repeat(2)@(posedge clk);
+        repeat(2)@(negedge clk);
         mem_write = 1;
         mem_req = 0;
         repeat(4)@(posedge clk);
         mem_write = 0;
 
+        // reset = 1;
+        // repeat(3)@(posedge clk);
+        // reset = 0; 
         //test 2: read the previously written data
         mem_req = 1;
-        @(posedge clk);
+        @(negedge clk);
         for (integer i = 0; i < BANKS; i++) begin
             if(i != 1 && i != 3 && i != 2) begin
                 addr[i] = i[15 : 0];
@@ -67,9 +70,13 @@ end
         addr[1] = 16'h0031; //read by thread 1 written by thread 3
         addr[3] = 16'h0021; //read by thread 3 written by thread 1
         addr[2] = 16'h0041;
-        @(posedge clk);
+        @(negedge clk);
         mem_req = 0;
         repeat(3)@(posedge clk);
+
+        // reset = 1;
+        // repeat(3)@(posedge clk);
+        // reset = 0; 
 
         //test 3: Now cause no conflicts but first write some data
         @(posedge clk);
@@ -77,17 +84,21 @@ end
             addr[i] = i[15 : 0];
             data_in[i] = i*2+1;
         end 
-        @(posedge clk);
+        @(negedge clk);
         mem_write = 1;  
         mem_req = 1; 
-        repeat(2)@(posedge clk);
+        repeat(2)@(negedge clk);
         mem_req = 0;
         repeat(3)@(posedge clk);
         mem_write = 0;
         mem_req = 0;
         @(posedge clk);
 
+        // reset = 1;
+        // repeat(3)@(posedge clk);
+        // reset = 0; 
         //test 4: Now read that data
+        @(negedge clk);
         mem_req = 1;
         for (integer i = 0; i < BANKS; i++) begin
             if(i != 2 && i != 4) begin
@@ -96,33 +107,42 @@ end
         end    
         addr[2] = 16'h0004; //written by thread 4 read by thread 2
         addr[4] = 16'h0002; //written by thread 2 read by thread 4
-        repeat(2)@(posedge clk);
+        repeat(1)@(negedge clk);
         mem_req = 0;
-        @(posedge clk);     
+        repeat(4)@(posedge clk);     
 
+        // reset = 1;
+        // repeat(3)@(posedge clk);
+        // reset = 0; 
         //test 5: send all requests to bank 1
         for(integer i = 0; i < BANKS; i++) begin
             addr[i] = {8'b0, i[3 : 0], 4'b1};
             data_in[i] = i+1;
         end   
-        @(posedge clk);
+        @(negedge clk);
         mem_req = 1;
         mem_write = 1;
-        repeat(2)@(posedge clk);
+        repeat(2)@(negedge clk);
         mem_req = 0;
         repeat(17)@(posedge clk);
         mem_write = 0;
 
-
+        // reset = 1;
+        // repeat(3)@(posedge clk);
+        // reset = 0; 
         //test 6 read that data
+        @(negedge clk);
         mem_req  = 1;
         for (integer i = 0; i < BANKS; i++) begin
             addr[i] = {8'b0, i[3:0], 4'b1};  // same addresses
         end
-        @(posedge clk);
+        @(negedge clk);
         mem_req = 0;
         repeat(17) @(posedge clk);
 
+        // reset = 1;
+        // repeat(3)@(posedge clk);
+        // reset = 0; 
 
         //test 7: cause conflicts on multiple banks
         for(integer i = 0; i < 4; i++) begin
@@ -141,14 +161,18 @@ end
             addr[i] = {8'b0, i[3 : 0], 4'b0100};
             data_in[i] = i+1;
         end 
-        @(posedge clk);
+        @(negedge clk);
         mem_req = 1;
         mem_write = 1;
-        repeat(2)@(posedge clk);
+        repeat(2)@(negedge clk);
         mem_req = 0;
         repeat(6)@(posedge clk);
         mem_write = 0;    
-        @(posedge clk);   
+        @(posedge clk);  
+
+        // reset = 1;
+        // repeat(3)@(posedge clk);
+        // reset = 0;  
 
         //test 8: read this data
         for(integer i = 0; i < 4; i++) begin
@@ -163,11 +187,15 @@ end
         for(integer i = 12; i < 16; i++) begin
             addr[i] = {8'b0, i[3 : 0], 4'b0100}; //read bank 4
         end 
-        @(posedge clk);
+        @(negedge clk);
         mem_req = 1;
-        repeat(2)@(posedge clk);
+        repeat(2)@(negedge clk);
         mem_req = 0;
         repeat(8)@(posedge clk);
+
+        // reset = 1;
+        // repeat(3)@(posedge clk);
+        // reset = 0; 
 
         //test 9: multiple broadcasts
         for(integer i = 0; i < 4; i++) begin
@@ -185,13 +213,42 @@ end
         end 
             addr[15] = 16'h0003; //broadcast at  different locations
             addr[13] = 16'h0003;
-        @(posedge clk);
+        @(negedge clk);
         mem_req = 1;
-        repeat(2)@(posedge clk);
+        repeat(2)@(negedge clk);
         mem_req = 0;
         repeat(6)@(posedge clk);
 
+        // reset = 1;
+        // repeat(3)@(posedge clk);
+        // reset = 0; 
+
         //test 10: a broadcasting bank has a conflict too
+        for(integer i = 0; i < 4; i++) begin
+            addr[i] = {8'b0, 4'b0000, 4'b0001}; //read bank 1(read the same register)
+        end 
+        for(integer i = 4; i < 8; i++) begin
+            addr[i] = {8'b0, 4'b0000, 4'b0010}; //read bank 2(read the same register)
+        end 
+        for(integer i = 8; i < 12; i++) begin
+            addr[i] = {8'b0, 4'b0000, 4'b0011}; //read bank 3(read the same register)
+        end
+        for(integer i = 13; i < 16; i++) begin
+            addr[i] = {8'b0, 4'b0000, 4'b0100}; //read bank 4
+        end 
+            addr[12] = 16'h00F4; // conflict in bank 4(read register 15) conflict in a thread lower than broadcast ones
+        @(negedge clk);
+        mem_req = 1;
+        repeat(2)@(negedge clk);
+        mem_req = 0;
+        repeat(6)@(posedge clk);
+
+        // reset = 1;
+        // repeat(3)@(posedge clk);
+        // reset = 0; 
+
+
+        //test 11: a broadcasting bank has a conflict too
         for(integer i = 0; i < 4; i++) begin
             addr[i] = {8'b0, 4'b0000, 4'b0001}; //read bank 1(read the same register)
         end 
@@ -204,13 +261,33 @@ end
         for(integer i = 12; i < 15; i++) begin
             addr[i] = {8'b0, 4'b0000, 4'b0100}; //read bank 4
         end 
-            addr[15] = 16'h00E4; // conflict in bank 4(read register 14)
-        @(posedge clk);
+            addr[15] = 16'h00F4; // conflict in bank 4(read register 15) conflict in a thread higher than broadcast ones
+        @(negedge clk);
         mem_req = 1;
-        repeat(2)@(posedge clk);
+        repeat(2)@(negedge clk);
+        mem_req = 0;
+        repeat(6)@(posedge clk);
+
+        // reset = 1;
+        // repeat(3)@(posedge clk);
+        // reset = 0; 
+
+        //multiple conflicting requests and broadcasts in the same bank
+        for (integer i = 0; i < 4; i++) begin
+            addr[i] = {8'b0, i[3 : 0], 4'b0001}; //conflict on 0 to 3rd reg depth
+        end
+        for (integer i = 4; i < 10; i++) begin
+            addr[i] = {8'b0, 4'b0100, 4'b0001}; //broadcast from 4th reg
+        end
+        addr[10] = {8'b0, 4'b0110, 4'b0001};
+        for (integer i = 11; i < 16; i++) begin
+            addr[i] = {8'b0, 4'b0101, 4'b0001}; //broadcast from 5th reg
+        end
+        @(negedge clk);
+        mem_req = 1;
+        repeat(2)@(negedge clk);
         mem_req = 0;
         repeat(20)@(posedge clk);
-
         
         $finish;
     end
