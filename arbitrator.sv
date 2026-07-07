@@ -20,9 +20,6 @@ module arbitrator #(
     output logic [$clog2(NUMBER_OF_WARPS) - 1 : 0]warp_id_to_ws, 
     output logic stall
 );
-    //i only need to save the addresses, warp number and request type
-    //rf access can be done using the warp number and the address generate by the alu 
-    //because that warp is stalled anyways so i can access them using the same port
     logic[ADDR_DEPTH - 1 : 0] saved_addr [0 : NUMBER_OF_THREADS - 1];
     logic[3 : 0] addr_depth [0 : NUMBER_OF_THREADS - 1];
     logic[3 : 0] addr_bank  [0 : NUMBER_OF_THREADS - 1];
@@ -110,7 +107,6 @@ module arbitrator #(
         end
 
     end
-//i have to generate grants to individual threads to write in a specific bank
     always_ff @(posedge clk) begin
         if(reset) begin
             for (integer i = 0; i < BANKS; i++) begin
@@ -154,7 +150,7 @@ module arbitrator #(
     generate
         for (i = 0; i < BANKS; i++) begin   
             memory_bank mem_bank (
-                .bank_en(bank_grant[i]), //comparison to check if bank number equals the address(this is wrong tho)
+                .bank_en(bank_grant[i]), 
                 .clk(clk),
                 .reset(reset),
                 .matmul(matmul),
