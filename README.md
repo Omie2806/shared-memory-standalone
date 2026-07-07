@@ -6,7 +6,8 @@ A synthesizable SystemVerilog arbitrator for a 16-bank shared memory, designed f
 
 ## Architecture Overview
 
-<img width="1136" height="696" alt="image" src="https://github.com/user-attachments/assets/33be1ee1-22b8-47a4-9e89-dab7ffe964c1" />
+<img width="1267" height="668" alt="image" src="https://github.com/user-attachments/assets/5896d8e3-44c2-4820-898b-d470b7ef1e1b" />
+
 
 
 ### Address Decomposition
@@ -64,6 +65,9 @@ module arbitrator #(
 
 The Arbitrator contains a Pending request table for each bank and its registers. The requests get queued in this table(broadcasts, conflicts or mixed request type).
 If a register in a bank is yet to be served, then its service flag is set with a corresponding Valid flag, when the request is served, its service flag is set to done and its valid flag is removed.
+
+<img width="707" height="575" alt="image" src="https://github.com/user-attachments/assets/8cefb185-76ec-47f3-ab58-1e2317a2a019" />
+
 
 ### Example:
 <img width="1882" height="562" alt="image" src="https://github.com/user-attachments/assets/f2368fa5-29d0-4cec-854e-223840ba31bb" />
