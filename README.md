@@ -113,13 +113,6 @@ This module is part of a larger SIMT GPU and systolic array implementation
 - Dual-mode 4×4 systolic array (MATMUL + elementwise via `op_mode`)
 - The systolic array holds unconditional priority on the shared memory port; SIMD stalls are absorbed by warp scheduling(probably access policy will change)
 
----
-
-## Known Limitations / Work in Progress
-
-- Arbitration is currently fixed-priority (lowest thread index wins per bank). True round-robin with aging is not yet implemented.
-
----
 
 ## Target Hardware
 
