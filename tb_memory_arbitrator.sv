@@ -26,6 +26,9 @@ initial begin
     forever #5 clk = ~clk;
 end
 
+assert property (@(posedge clk) disable iff(reset) dut.SERVE[0][0] !== 2'b11)
+    else $error("SERVE[0][0] hit reserved state 2'b11 at time %0t", $time);
+
     initial begin
         reset = 1;
         repeat(3)@(posedge clk);
@@ -272,7 +275,7 @@ end
         // repeat(3)@(posedge clk);
         // reset = 0; 
 
-        //multiple conflicting requests and broadcasts in the same bank
+        // test 12: multiple conflicting requests and broadcasts in the same bank
         for (integer i = 0; i < 4; i++) begin
             addr[i] = {8'b0, i[3 : 0], 4'b0001}; //conflict on 0 to 3rd reg depth
         end
@@ -287,7 +290,40 @@ end
         mem_req = 1;
         repeat(2)@(negedge clk);
         mem_req = 0;
-        repeat(20)@(posedge clk);
+        repeat(7)@(posedge clk);
+
+        //test 13: cause conflicts on multiple banks and same depth
+        //reset everything so i can verify cleanly
+        reset = 1;
+        repeat(3)@(posedge clk);
+        reset = 0; 
+
+        for(integer i = 0; i < 4; i++) begin
+            addr[i] = {8'b0, 4'b0000, 4'b0001};
+            data_in[i] = i+1;
+        end 
+        addr[4] = {8'b0, 4'b0001, 4'b0001};
+        data_in[4] = 16'hFFFF;
+        for(integer i = 5; i < 8; i++) begin
+            addr[i] = {8'b0, i[3 : 0], 4'b0010};
+            data_in[i] = i+1;
+        end 
+        for(integer i = 8; i < 12; i++) begin
+            addr[i] = {8'b0, i[3 : 0], 4'b0011};
+            data_in[i] = i+1;
+        end
+        for(integer i = 12; i < 16; i++) begin
+            addr[i] = {8'b0, i[3 : 0], 4'b0100};
+            data_in[i] = i+1;
+        end 
+        @(negedge clk);
+        mem_req = 1;
+        mem_write = 1;
+        repeat(2)@(negedge clk);
+        mem_req = 0;
+        repeat(6)@(posedge clk);
+        mem_write = 0;    
+        repeat(20)@(posedge clk);  
         
         $finish;
     end
