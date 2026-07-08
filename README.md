@@ -66,6 +66,8 @@ module arbitrator #(
 The Arbitrator contains a Pending request table for each bank and its registers. The requests get queued in this table(broadcasts, conflicts or mixed request type).
 If a register in a bank is yet to be served, then its service flag is set with a corresponding Valid flag, when the request is served, its service flag is set to done and its valid flag is removed.
 
+Incase of write broadcasts, the last thread which performs a write on that address wins.
+
 <img width="707" height="575" alt="image" src="https://github.com/user-attachments/assets/8cefb185-76ec-47f3-ab58-1e2317a2a019" />
 
 
