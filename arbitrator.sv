@@ -140,7 +140,7 @@ module arbitrator #(
     generate
         for (i = 0; i < BANKS; i++) begin   
             memory_bank mem_bank (
-                .bank_en(bank_grant[i]), //comparison to check if bank number equals the address(this is wrong tho)
+                .bank_en(bank_grant[i]),
                 .clk(clk),
                 .reset(reset),
                 .matmul(matmul),
