@@ -25,32 +25,26 @@ module arbitrator #(
     logic[3 : 0] addr_bank  [0 : NUMBER_OF_THREADS - 1];
     logic[DW - 1 : 0] read_data [0 : NUMBER_OF_THREADS - 1];
     
-    logic[3 : 0] broadcast_depth [0 : NUMBER_OF_THREADS - 1];
-    logic[3 : 0] bank_to_read [0 : NUMBER_OF_THREADS - 1];
-
-
     logic[15 : 0] grant_mask_per_bank[0 : BANKS - 1][0 : ADDR_DEPTH - 1];
     //00-dont serve, 01- serve remaining, 10-serve done
     logic[1 : 0]  SERVE[0 : BANKS - 1][0 : ADDR_DEPTH - 1];
     logic         VALID[0 : BANKS - 1][0 : ADDR_DEPTH - 1];
     logic[15 : 0] current_grant;
     logic current_grant_found;
-    logic current_thread_grant;
     logic valid_found;
     logic bank_grant[0 : BANKS - 1];
-    logic[3 : 0] depth_to_read [0 : NUMBER_OF_THREADS - 1];
+    logic[3 : 0] thread_to_read [0 : NUMBER_OF_THREADS - 1];
 
     logic any_pending;
-    logic mem_req_latched;
+
     always_comb begin 
         if(reset) begin
             for (integer i = 0; i < BANKS; i++) begin
                 for (integer j = 0; j < ADDR_DEPTH; j++) begin
                     grant_mask_per_bank[i][j] = 0;
-                    bank_to_read[i] = 0;
                     current_grant = 0;
                     bank_grant[i] = 0;
-                    depth_to_read[i] = 0;
+                    thread_to_read[i] = 0;
                 end
             end            
         end
@@ -77,10 +71,9 @@ module arbitrator #(
                 if(SERVE[i][j] == 2'b01 && !current_grant_found && VALID[i][j]) begin
                     for (integer k = 0; k < NUMBER_OF_THREADS; k++) begin
                         if(grant_mask_per_bank[i][j][k]) begin
-                            depth_to_read[i] = k;  
+                            thread_to_read[i] = k;  
                         end 
                     end
-                    bank_to_read[i] = i;
                     current_grant = current_grant | grant_mask_per_bank[i][j];
                     grant_mask_per_bank[i][j] = 0;
                     bank_grant[i] = 1'b1;
@@ -99,13 +92,11 @@ module arbitrator #(
         for (integer i = 0; i < BANKS; i++) begin
             for (integer j = 0; j < ADDR_DEPTH; j++) begin
                 if(!stall) begin
-                    bank_to_read[i] = 0;
                     bank_grant[i] = 0;
-                    depth_to_read[i] = 0;
+                    thread_to_read[i] = 0;
                 end
             end
         end
-
     end
     always_ff @(posedge clk) begin
         if(reset) begin
@@ -115,7 +106,6 @@ module arbitrator #(
                     SERVE[i][j] <= 0;
                 end
             end
-            mem_req_latched <= 0;
         end
         else if(mem_req) begin
             for (integer i = 0; i < BANKS; i++) begin
@@ -150,13 +140,13 @@ module arbitrator #(
     generate
         for (i = 0; i < BANKS; i++) begin   
             memory_bank mem_bank (
-                .bank_en(bank_grant[i]), 
+                .bank_en(bank_grant[i]), //comparison to check if bank number equals the address(this is wrong tho)
                 .clk(clk),
                 .reset(reset),
                 .matmul(matmul),
                 .mem_write(mem_write),
-                .addr_depth(addr_depth[depth_to_read[i]]),
-                .data_in(data_in[depth_to_read[i]]),
+                .addr_depth(addr_depth[thread_to_read[i]]),
+                .data_in(data_in[thread_to_read[i]]),
                 .data_out(read_data[i]) 
             );
         end
