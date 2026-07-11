@@ -1,13 +1,11 @@
 module memory_bank #(
     parameter DW         = 16,
-    parameter ADDR_DEPTH = 4,
-    parameter N          = 4
+    parameter ADDR_DEPTH = 4
 ) (
     input logic clk,
     input logic reset,
     input logic bank_en,
     input logic mem_write,
-    input logic matmul, //fromm control unit to know whether to actual perform matmul or not
     input logic[ADDR_DEPTH - 1 : 0] addr_depth, // 7 : 4 of the overall address
     input logic [DW - 1 : 0] data_in,
     output logic[DW - 1 : 0] data_out
@@ -25,5 +23,6 @@ always_ff @(posedge clk) begin
        MEMORY_BANK[addr_depth] <= data_in; 
     end
 end 
+
 assign data_out = bank_en ? MEMORY_BANK[addr_depth] : 0;
 endmodule
