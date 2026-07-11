@@ -3,20 +3,14 @@ module tb_memory_arbitrator;
     parameter DW         = 16;
     parameter NUMBER_OF_THREADS  = 16; //systolic grid size 
     parameter ADDR_DEPTH = 16;
-    parameter NUMBER_OF_WARPS = 4;
 
     logic clk;
     logic reset; 
-    logic matmul;
     logic mem_write;
     logic mem_req;
-    logic request_type;
-    logic [$clog2(NUMBER_OF_WARPS) - 1 : 0]warp_id_from_ws;
     logic[ADDR_DEPTH - 1 : 0]              addr[0 : NUMBER_OF_THREADS - 1]; // receive te whole address ad decode it here 
     logic[DW - 1 : 0]                      data_in[0 : NUMBER_OF_THREADS - 1];
     logic[DW -  1 : 0]                     data_out[0 : NUMBER_OF_THREADS - 1];  
-    logic [$clog2(NUMBER_OF_WARPS) - 1 : 0]rf_to_access;
-    logic [$clog2(NUMBER_OF_WARPS) - 1 : 0]warp_id_to_ws;  
     logic[NUMBER_OF_THREADS - 1 : 0]       active_mask;
     logic stall;
 
@@ -31,6 +25,12 @@ assert property (@(posedge clk) disable iff(reset) dut.SERVE[0][0] !== 2'b11)
 
     initial begin
         reset = 1;
+        mem_req = 0;
+        mem_write = 0;
+        for (integer i = 0; i < 16; i++) begin
+            addr[i] <= 0;
+            data_in[i] <= 0;
+        end
         repeat(3)@(posedge clk);
         reset = 0; 
         active_mask = 16'hFFFF;
@@ -64,7 +64,7 @@ assert property (@(posedge clk) disable iff(reset) dut.SERVE[0][0] !== 2'b11)
         // reset = 0; 
         //test 2: read the previously written data
         mem_req = 1;
-        @(negedge clk);
+        // @(posedge clk);
         for (integer i = 0; i < BANKS; i++) begin
             if(i != 1 && i != 3 && i != 2) begin
                 addr[i] = i[15 : 0];
@@ -73,7 +73,7 @@ assert property (@(posedge clk) disable iff(reset) dut.SERVE[0][0] !== 2'b11)
         addr[1] = 16'h0031; //read by thread 1 written by thread 3
         addr[3] = 16'h0021; //read by thread 3 written by thread 1
         addr[2] = 16'h0041;
-        @(negedge clk);
+        repeat(2)@(negedge clk);
         mem_req = 0;
         repeat(3)@(posedge clk);
 
@@ -169,7 +169,7 @@ assert property (@(posedge clk) disable iff(reset) dut.SERVE[0][0] !== 2'b11)
         mem_write = 1;
         repeat(2)@(negedge clk);
         mem_req = 0;
-        repeat(6)@(posedge clk);
+        repeat(18)@(posedge clk);
         mem_write = 0;    
         @(posedge clk);  
 
@@ -194,7 +194,7 @@ assert property (@(posedge clk) disable iff(reset) dut.SERVE[0][0] !== 2'b11)
         mem_req = 1;
         repeat(2)@(negedge clk);
         mem_req = 0;
-        repeat(8)@(posedge clk);
+        repeat(18)@(posedge clk);
 
         // reset = 1;
         // repeat(3)@(posedge clk);
@@ -220,7 +220,7 @@ assert property (@(posedge clk) disable iff(reset) dut.SERVE[0][0] !== 2'b11)
         mem_req = 1;
         repeat(2)@(negedge clk);
         mem_req = 0;
-        repeat(6)@(posedge clk);
+        repeat(18)@(posedge clk);
 
         // reset = 1;
         // repeat(3)@(posedge clk);
@@ -244,7 +244,7 @@ assert property (@(posedge clk) disable iff(reset) dut.SERVE[0][0] !== 2'b11)
         mem_req = 1;
         repeat(2)@(negedge clk);
         mem_req = 0;
-        repeat(6)@(posedge clk);
+        repeat(18)@(posedge clk);
 
         // reset = 1;
         // repeat(3)@(posedge clk);
@@ -269,7 +269,7 @@ assert property (@(posedge clk) disable iff(reset) dut.SERVE[0][0] !== 2'b11)
         mem_req = 1;
         repeat(2)@(negedge clk);
         mem_req = 0;
-        repeat(6)@(posedge clk);
+        repeat(18)@(posedge clk);
 
         // reset = 1;
         // repeat(3)@(posedge clk);
@@ -290,7 +290,7 @@ assert property (@(posedge clk) disable iff(reset) dut.SERVE[0][0] !== 2'b11)
         mem_req = 1;
         repeat(2)@(negedge clk);
         mem_req = 0;
-        repeat(7)@(posedge clk);
+        repeat(18)@(posedge clk);
 
         //test 13: cause conflicts on multiple banks and same depth
         //reset everything so i can verify cleanly
