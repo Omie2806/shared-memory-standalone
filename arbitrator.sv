@@ -2,25 +2,18 @@ module arbitrator #(
     parameter BANKS      = 16,
     parameter DW         = 16,
     parameter NUMBER_OF_THREADS  = 16, //systolic grid size 
-    parameter NUMBER_OF_WARPS = 4,
     parameter ADDR_DEPTH = 16
 ) (
     input logic clk,
     input logic reset, 
-    input logic matmul,
     input logic mem_write,
     input logic mem_req,
-    input logic request_type, //eg 0 for lw and 1 sw
-    input logic [$clog2(NUMBER_OF_WARPS) - 1 : 0] warp_id_from_ws,//for multi-warp
     input logic [NUMBER_OF_THREADS - 1 : 0]       active_mask,
     input logic [ADDR_DEPTH - 1 : 0]              addr[0 : NUMBER_OF_THREADS - 1], // receive te whole address ad decode it here 
     input  logic [DW - 1 : 0]                     data_in[0 : NUMBER_OF_THREADS - 1],
     output logic [DW -  1 : 0]                    data_out[0 : NUMBER_OF_THREADS - 1], 
-    output logic [$clog2(NUMBER_OF_WARPS) - 1 : 0]rf_to_access,//a mux at top level can allow stalled rf access
-    output logic [$clog2(NUMBER_OF_WARPS) - 1 : 0]warp_id_to_ws, 
     output logic stall
 );
-    logic[ADDR_DEPTH - 1 : 0] saved_addr [0 : NUMBER_OF_THREADS - 1];
     logic[3 : 0] addr_depth [0 : NUMBER_OF_THREADS - 1];
     logic[3 : 0] addr_bank  [0 : NUMBER_OF_THREADS - 1];
     logic[DW - 1 : 0] read_data [0 : NUMBER_OF_THREADS - 1];
@@ -36,8 +29,18 @@ module arbitrator #(
     logic[3 : 0] thread_to_read [0 : NUMBER_OF_THREADS - 1];
 
     logic any_pending;
+    logic grant_left;
+    logic[15 : 0] stall_cycles;
+    typedef enum logic {
+        FIRST = 0,
+        SECOND = 1
+    } state_t;
+
+    state_t state_curr;
 
     always_comb begin 
+        current_grant_found = 0;
+        current_grant = 0;
         if(reset) begin
             for (integer i = 0; i < BANKS; i++) begin
                 for (integer j = 0; j < ADDR_DEPTH; j++) begin
@@ -45,6 +48,8 @@ module arbitrator #(
                     current_grant = 0;
                     bank_grant[i] = 0;
                     thread_to_read[i] = 0;
+                    addr_bank[i]  = 0; //bank address
+                    addr_depth[i] = 0; //depth address 
                 end
             end            
         end
@@ -68,16 +73,16 @@ module arbitrator #(
         for (integer i = 0; i < BANKS; i++) begin
             current_grant_found = 0;
             for (integer j = 0; j < ADDR_DEPTH; j++) begin
-                if(SERVE[i][j] == 2'b01 && !current_grant_found && VALID[i][j]) begin
+                if(SERVE[i][j] == 2'b01 && VALID[i][j] && !current_grant_found) begin
                     for (integer k = 0; k < NUMBER_OF_THREADS; k++) begin
-                        if(grant_mask_per_bank[i][j][k]) begin
+                        if((grant_mask_per_bank[i][j][k] && !current_grant_found) && (grant_left || !grant_left)) begin
                             thread_to_read[i] = k;  
+                            current_grant[k] = current_grant[k] | grant_mask_per_bank[i][j][k];
+                            grant_mask_per_bank[i][j][k] = 0;
+                            current_grant_found = 1;
                         end 
                     end
-                    current_grant = current_grant | grant_mask_per_bank[i][j];
-                    grant_mask_per_bank[i][j] = 0;
                     bank_grant[i] = 1'b1;
-                    current_grant_found = 1;
                 end
             end
         end
@@ -104,6 +109,9 @@ module arbitrator #(
                 for (integer j = 0; j < ADDR_DEPTH; j++) begin
                     VALID[i][j] <= 0;
                     SERVE[i][j] <= 0;
+                    grant_left <= 0;
+                    state_curr <= FIRST;
+                    stall_cycles <= 0;
                 end
             end
         end
@@ -119,13 +127,32 @@ module arbitrator #(
             for (integer i = 0; i < BANKS; i++) begin
                 valid_found = 0;
                 for (integer j = 0; j < ADDR_DEPTH; j++) begin
-                    if(SERVE[i][j] == 2'b01 && !valid_found) begin
+                    if(SERVE[i][j] == 2'b01 && !valid_found && |grant_mask_per_bank[i][j] == 0) begin
                         SERVE[i][j] <= 2'b10;
                         VALID[i][j] <= 0;
                         valid_found = 1;
+                        grant_left <= 0;
+                    end
+                    else if (|grant_mask_per_bank[i][j] == 1) begin
+                        //use a state machine to keep always_comb running when grants are still reamining
+                        //when ideally it couldve been broadcasted 
+                        case (state_curr)
+                            FIRST: begin
+                                grant_left <= 0;
+                                state_curr <= SECOND;
+                            end
+                            SECOND: begin
+                                grant_left <= 1;
+                                state_curr <= FIRST;
+                            end 
+                            default: state_curr <= FIRST;
+                        endcase                 
                     end
                 end
             end
+        end
+        if(stall) begin
+            stall_cycles <= stall_cycles + 1;
         end
         if(!stall) begin
             for (integer i = 0; i < BANKS; i++) begin
@@ -133,6 +160,7 @@ module arbitrator #(
                     SERVE[i][j] <= 0;
                 end
             end
+            stall_cycles <= 0;
         end
     end
 
@@ -143,7 +171,6 @@ module arbitrator #(
                 .bank_en(bank_grant[i]),
                 .clk(clk),
                 .reset(reset),
-                .matmul(matmul),
                 .mem_write(mem_write),
                 .addr_depth(addr_depth[thread_to_read[i]]),
                 .data_in(data_in[thread_to_read[i]]),
